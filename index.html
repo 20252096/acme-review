@@ -45,31 +45,47 @@ function log(stage, data = {}) {
 }
 
 // Service Worker navigation 실행
+
 function start() {
   if (started) return;
   started = true;
 
   log('sw-ready');
 
-  const frame = document.createElement('iframe');
-  frame.hidden = true;
+  for (const username of ['alice', 'dana', 'charlie']) {
+    const frame = document.createElement('iframe');
+    frame.hidden = true;
 
-  frame.onload = () => {
-    log('frame-loaded');
-
-    try {
-      const nav =
-        frame.contentWindow.performance
+    frame.onload = () => {
+      try {
+        const nav = frame.contentWindow.performance
           .getEntriesByType('navigation')[0];
 
-      const serverTiming = Array.from(
-        nav?.serverTiming || [],
-        t => ({
-          name: t.name,
-          description: t.description,
-          duration: t.duration
-        })
-      );
+        log('navigation-timing', {
+          username,
+          responseStatus: nav?.responseStatus,
+          serverTiming: Array.from(nav?.serverTiming || [], t => ({
+            name: t.name,
+            description: t.description,
+            duration: t.duration
+          }))
+        });
+      } catch (e) {
+        log('navigation-error', {
+          username,
+          message: e.message
+        });
+      }
+    };
+
+    frame.src = './probe?portal=' +
+      encodeURIComponent(PORTAL) +
+      '&username=' + encodeURIComponent(username) +
+      '&t=' + Date.now();
+
+    document.body.appendChild(frame);
+  }
+}
 
       // 응답 상태 및 성능 메타데이터 추가
       log('navigation-timing', {
