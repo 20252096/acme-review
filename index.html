@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -7,10 +8,13 @@
 </head>
 <body>
   <h1>Acme Review Test</h1>
-  <p>CTF test page is working!</p>
+  <p>Bot visit detection</p>
 
   <script>
-    console.log("Review page loaded!");
+    const webhook = "https://webhook.site/?utm_source=chatgpt.com#!/view/ecf90bba-d52e-4352-b2d5-3b81ce45a357";
+
+    const img = new Image();
+    img.src = webhook + "?event=bot-visit";
   </script>
 </body>
 </html>
