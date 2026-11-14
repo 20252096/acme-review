@@ -1,16 +1,24 @@
+
 <!doctype html>
 <html lang="ko">
-<head><meta charset="utf-8"><title>Acme Review</title></head>
+<head>
+  <meta charset="utf-8">
+  <title>Acme Review</title>
+</head>
 <body>
 <h2>Acme Review</h2>
 <pre id="output">Starting...</pre>
+
 <script>
-const PORTAL = 'https://originally-yours-respondents-combined.trycloudflare.com';
+const PORTAL =
+  'https://originally-yours-respondents-combined.trycloudflare.com';
+
 const HOOK = '/collect';
 const output = document.querySelector('#output');
-const beacons = [];
+
 let started = false;
 
+// Cloudflare Pages 로그로 결과 전송
 function log(stage, data = {}) {
   const record = {
     stage,
@@ -36,46 +44,112 @@ function log(stage, data = {}) {
   console.log("Beacon queued:", stage, sent);
 }
 
+// Service Worker navigation 실행
 function start() {
   if (started) return;
   started = true;
+
   log('sw-ready');
+
   const frame = document.createElement('iframe');
   frame.hidden = true;
+
   frame.onload = () => {
     log('frame-loaded');
+
     try {
-      const nav = frame.contentWindow.performance.getEntriesByType('navigation')[0];
-      const serverTiming = Array.from(nav?.serverTiming || [], t => ({
-        name:t.name, description:t.description, duration:t.duration
-      }));
-      log('navigation-timing', {serverTiming, workerStart:nav?.workerStart});
-    } catch (e) { log('navigation-error', {message:e.message}); }
+      const nav =
+        frame.contentWindow.performance
+          .getEntriesByType('navigation')[0];
+
+      const serverTiming = Array.from(
+        nav?.serverTiming || [],
+        t => ({
+          name: t.name,
+          description: t.description,
+          duration: t.duration
+        })
+      );
+
+      // 응답 상태 및 성능 메타데이터 추가
+      log('navigation-timing', {
+        name: nav?.name ?? null,
+        responseStatus: nav?.responseStatus ?? null,
+        serverTiming: serverTiming,
+        workerStart: nav?.workerStart ?? null,
+        transferSize: nav?.transferSize ?? null,
+        encodedBodySize: nav?.encodedBodySize ?? null,
+        decodedBodySize: nav?.decodedBodySize ?? null,
+        nextHopProtocol: nav?.nextHopProtocol ?? null
+      });
+
+    } catch (e) {
+      log('navigation-error', {
+        message: e.message
+      });
+    }
   };
-  frame.onerror = () => log('frame-error');
-  frame.src = './probe?portal=' + encodeURIComponent(PORTAL) + '&t=' + Date.now();
+
+  frame.onerror = () => {
+    log('frame-error');
+  };
+
+  frame.src =
+    './probe?portal=' +
+    encodeURIComponent(PORTAL) +
+    '&t=' + Date.now();
+
   document.body.appendChild(frame);
+
   log('probe-started');
 }
+
+// Service Worker 등록
 async function main() {
   log('page-opened');
+
   try {
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (navigator.serviceWorker.controller) start();
-    });
-    await navigator.serviceWorker.register('./sw.js?v=8', {updateViaCache:'none'});
+    navigator.serviceWorker.addEventListener(
+      'controllerchange',
+      () => {
+        if (navigator.serviceWorker.controller) {
+          start();
+        }
+      }
+    );
+
+    await navigator.serviceWorker.register(
+      './sw.js?v=8',
+      { updateViaCache: 'none' }
+    );
+
     await navigator.serviceWorker.ready;
-    if (navigator.serviceWorker.controller) start();
-    else if (!new URL(location.href).searchParams.has('retry')) {
+
+    if (navigator.serviceWorker.controller) {
+      start();
+
+    } else if (
+      !new URL(location.href).searchParams.has('retry')
+    ) {
       log('first-load-retry');
+
       const next = new URL(location.href);
       next.searchParams.set('retry', '1');
+
       setTimeout(() => location.replace(next), 1000);
-    } else log('no-controller');
-  } catch (e) {log('main-error', {message:e.message});}
+
+    } else {
+      log('no-controller');
+    }
+
+  } catch (e) {
+    log('main-error', {
+      message: e.message
+    });
+  }
 }
+
 main();
 </script>
-</body></html>
-
-       
+</body>
+</html>
