@@ -15,10 +15,8 @@ const PORTAL =
 
 const HOOK = '/collect';
 const output = document.querySelector('#output');
-
 let started = false;
 
-// Cloudflare Pages 로그로 결과 전송
 function log(stage, data = {}) {
   const record = {
     stage,
@@ -27,24 +25,15 @@ function log(stage, data = {}) {
   };
 
   const payload = JSON.stringify(record);
-
-  output.textContent += "\n" + payload;
+  output.textContent += '\n' + payload;
   console.log(record);
 
-  const url =
-    HOOK +
-    "?event=" + encodeURIComponent(stage) +
-    "&t=" + Date.now();
-
-  const sent = navigator.sendBeacon(
-    url,
-    new Blob([payload], { type: "text/plain" })
+  navigator.sendBeacon(
+    HOOK + '?event=' + encodeURIComponent(stage)
+      + '&t=' + Date.now(),
+    new Blob([payload], {type: 'text/plain'})
   );
-
-  console.log("Beacon queued:", stage, sent);
 }
-
-// Service Worker navigation 실행
 
 function start() {
   if (started) return;
@@ -63,12 +52,16 @@ function start() {
 
         log('navigation-timing', {
           username,
-          responseStatus: nav?.responseStatus,
-          serverTiming: Array.from(nav?.serverTiming || [], t => ({
-            name: t.name,
-            description: t.description,
-            duration: t.duration
-          }))
+          responseStatus: nav?.responseStatus ?? null,
+          workerStart: nav?.workerStart ?? null,
+          serverTiming: Array.from(
+            nav?.serverTiming || [],
+            t => ({
+              name: t.name,
+              description: t.description,
+              duration: t.duration
+            })
+          )
         });
       } catch (e) {
         log('navigation-error', {
@@ -78,49 +71,15 @@ function start() {
       }
     };
 
-    frame.src = './probe?portal=' +
-      encodeURIComponent(PORTAL) +
-      '&username=' + encodeURIComponent(username) +
-      '&t=' + Date.now();
+    frame.src =
+      './probe?portal=' + encodeURIComponent(PORTAL)
+      + '&username=' + encodeURIComponent(username)
+      + '&t=' + Date.now();
 
     document.body.appendChild(frame);
   }
 }
 
-      // 응답 상태 및 성능 메타데이터 추가
-      log('navigation-timing', {
-        name: nav?.name ?? null,
-        responseStatus: nav?.responseStatus ?? null,
-        serverTiming: serverTiming,
-        workerStart: nav?.workerStart ?? null,
-        transferSize: nav?.transferSize ?? null,
-        encodedBodySize: nav?.encodedBodySize ?? null,
-        decodedBodySize: nav?.decodedBodySize ?? null,
-        nextHopProtocol: nav?.nextHopProtocol ?? null
-      });
-
-    } catch (e) {
-      log('navigation-error', {
-        message: e.message
-      });
-    }
-  };
-
-  frame.onerror = () => {
-    log('frame-error');
-  };
-
-  frame.src =
-    './probe?portal=' +
-    encodeURIComponent(PORTAL) +
-    '&t=' + Date.now();
-
-  document.body.appendChild(frame);
-
-  log('probe-started');
-}
-
-// Service Worker 등록
 async function main() {
   log('page-opened');
 
@@ -128,40 +87,30 @@ async function main() {
     navigator.serviceWorker.addEventListener(
       'controllerchange',
       () => {
-        if (navigator.serviceWorker.controller) {
-          start();
-        }
+        if (navigator.serviceWorker.controller) start();
       }
     );
 
     await navigator.serviceWorker.register(
-      './sw.js?v=8',
-      { updateViaCache: 'none' }
+      './sw.js?v=9',
+      {updateViaCache: 'none'}
     );
 
     await navigator.serviceWorker.ready;
 
     if (navigator.serviceWorker.controller) {
       start();
-
     } else if (
       !new URL(location.href).searchParams.has('retry')
     ) {
-      log('first-load-retry');
-
       const next = new URL(location.href);
       next.searchParams.set('retry', '1');
-
-      setTimeout(() => location.replace(next), 1000);
-
+      location.replace(next);
     } else {
       log('no-controller');
     }
-
   } catch (e) {
-    log('main-error', {
-      message: e.message
-    });
+    log('main-error', {message: e.message});
   }
 }
 
@@ -169,3 +118,5 @@ main();
 </script>
 </body>
 </html>
+
+
