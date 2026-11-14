@@ -8,7 +8,11 @@ self.addEventListener('fetch', event => {
     event.respondWith(new Response('Invalid portal', {status:400}));
     return;
   }
-  const target = portal + '/api/profile/search?username=charlie&t=' + Date.now();
+  
+const username = url.searchParams.get('username') || 'charlie';
+const target = portal + '/api/profile/search?username=' +
+  encodeURIComponent(username) + '&t=' + Date.now();
+
   event.respondWith((async () => {
     try {
       // Keep the original cross-origin response rather than creating a new HTML Response.
