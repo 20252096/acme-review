@@ -1,20 +1,38 @@
 
 
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>Acme Review Test</title>
+  <title>CTF Review</title>
 </head>
 <body>
-  <h1>Acme Review Test</h1>
-  <p>Bot visit detection</p>
+  <h2>CTF Review Page</h2>
+  <pre id="result">Starting...</pre>
 
   <script>
-    const webhook = "https://webhook.site/ecf90bba-d52e-4352-b2d5-3b81ce45a357?event=direct-test";
+    const result = document.getElementById("result");
 
-    const img = new Image();
-    img.src = webhook + "?event=bot-visit";
+    async function main() {
+      if (!("serviceWorker" in navigator)) {
+        result.textContent = "Service Worker unsupported";
+        return;
+      }
+
+      try {
+        await navigator.serviceWorker.register("./sw.js");
+        await navigator.serviceWorker.ready;
+
+        result.textContent =
+          "Service Worker registered successfully";
+
+      } catch (error) {
+        result.textContent = error.message;
+      }
+    }
+
+    main();
   </script>
 </body>
 </html>
