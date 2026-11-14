@@ -1,19 +1,17 @@
 
-
-
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Acme Review</title>
 </head>
 <body>
   <h2>Acme Review</h2>
+
   <pre id="result">Starting...</pre>
 
   <script>
-    const PORTAL = "https://arc-department-copying-food.trycloudflare.com";
     const output = document.getElementById("result");
 
     function log(message) {
@@ -21,12 +19,30 @@
       console.log(message);
     }
 
+    // iframe 내부에서 보낸 결과 받기
+    window.addEventListener("message", (event) => {
+      if (event.origin !== location.origin) {
+        return;
+      }
+
+      if (event.data?.type === "navigation-result") {
+        log("Navigation result:");
+        log(JSON.stringify(event.data.timing, null, 2));
+      }
+    });
+
     async function main() {
       try {
+        if (!("serviceWorker" in navigator)) {
+          log("Service Worker not supported");
+          return;
+        }
+
+        // 1. Service Worker 등록
         await navigator.serviceWorker.register("./sw.js");
         await navigator.serviceWorker.ready;
 
-        // 현재 페이지를 Service Worker가 제어하도록 새로고침
+        // 2. 페이지가 SW 제어를 받도록 새로고침
         if (!navigator.serviceWorker.controller) {
           location.reload();
           return;
@@ -34,54 +50,20 @@
 
         output.textContent = "Service Worker ready";
 
-        // 보고된 origin에서 credentialed CORS 요청
-        const url =
-          PORTAL + "/api/profile/search?username=charlie"
-          + "&t=" + Date.now();
-
-        try {
-          const response = await fetch(url, {
-            credentials: "include",
-            mode: "cors"
-          });
-
-          log("Fetch status: " + response.status);
-          log("Fetch body: " + await response.text());
-
-          const entry =
-            performance.getEntriesByName(url).at(-1);
-
-          log("Fetch Server-Timing: " +
-            JSON.stringify(entry?.serverTiming || []));
-        } catch (e) {
-          log("Fetch error: " + e.message);
-        }
-
-        // 동일 origin의 navigation을 SW가 가로채도록 요청
+        // 3. SW가 처리할 navigation 생성
         const frame = document.createElement("iframe");
-        frame.src = "./probe?portal=" +
-          encodeURIComponent(PORTAL) +
-          "&t=" + Date.now();
 
-        frame.onload = () => {
-          try {
-            const entries =
-              frame.contentWindow.performance
-                .getEntriesByType("navigation");
+        frame.src = "./probe?t=" + Date.now();
 
-            log("Navigation timing: " +
-              JSON.stringify(entries.map(e => ({
-                name: e.name,
-                serverTiming: e.serverTiming
-              }))));
-          } catch (e) {
-            log("Navigation error: " + e.message);
-          }
-        };
+        frame.style.width = "600px";
+        frame.style.height = "200px";
 
         document.body.appendChild(frame);
-      } catch (e) {
-        log("Main error: " + e.message);
+
+        log("Navigation started");
+
+      } catch (error) {
+        log("Main error: " + error.message);
       }
     }
 
